@@ -8,7 +8,6 @@ import boto3 as boto
 import sys, os
 import base64
 import pysftp
-import json
 
 ###################################################################################################
 
