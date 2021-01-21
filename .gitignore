@@ -1,4 +1,4 @@
 tmp/
 optiqs_config.json
-scraper.log
+log.log
 __pycache__/

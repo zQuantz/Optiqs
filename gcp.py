@@ -60,6 +60,6 @@ if __name__ == '__main__':
 
 	## CBOE
 	# create_gcp_metric("cboe_options_dump_size", "DOUBLE")
-	create_gcp_metric("cboe_options_indicator", "INT64")
+	# create_gcp_metric("cboe_options_indicator", "INT64")
 
 	pass

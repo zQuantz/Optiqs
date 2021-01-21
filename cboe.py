@@ -2,9 +2,11 @@ from const import DIR, DATE, CONFIG, CREDS, logger
 from google.cloud import storage
 from gcp import send_metric
 from zipfile import ZipFile
+from hashlib import md5
 import tarfile as tar
 import boto3 as boto
 import sys, os
+import base64
 import pysftp
 import json
 
@@ -16,7 +18,10 @@ GCP = CONFIG['GCP']
 storage_client = storage.Client(credentials=CREDS)
 GCP_BUCKET = storage_client.bucket(GCP['BUCKET'])
 GCP_VAULT = storage_client.bucket(GCP['VAULT'])
-AWS_VAULT = boto.resource('s3').bucket("cboe-options-vault")
+AWS_VAULT = boto.resource('s3').Bucket("cboe-options-vault")
+
+CLOUD_FNAME = f"{DATE}.tar.xz"
+TAR_FNAME = f"{DIR}/data/{CLOUD_FNAME}"
 
 ###################################################################################################
 
@@ -37,6 +42,7 @@ def download_and_compress():
 
 		filesize = os.stat(localname).st_size / 1_000_000
 		logger.info(f"Size of file: {filesize}mbs")
+		send_metric(CONFIG, "cboe_options_dump_size", "double_value", filesize)
 
 	logger.info(f"Unzipping data...")
 	with ZipFile(localname, "r") as zip_file:
@@ -46,37 +52,51 @@ def download_and_compress():
 	os.rename(f"{DIR}/data/{CBOE['FNAME']}{DATE}.csv", f"{DIR}/data/{DATE}.csv")
 
 	logger.info("Compressing file with tar...")
-	with tar.open(f"{DIR}/data/{DATE}.tar.xz", "x:xz") as tar_file:
+	with tar.open(TAR_FNAME, "x:xz") as tar_file:
 		tar_file.add(f"{DIR}/data/{DATE}.csv", arcname=f"{DATE}.csv")
 
 	logger.info("Deleting zip...")
 	os.unlink(f"{DIR}/data/{DATE}.zip")
 
-def store():
+def save_to_cloud():
 
-	blob = GCP_BUCKET.blob(f"{DATE}.tar.xz")
+	blob = GCP_BUCKET.blob(CLOUD_FNAME)
 	if not blob.exists():
-		logger.warning(f"Error. {DATE}.tar.xz blob exists.")
+		logger.info("Uploading blob...")
+		blob.upload_from_filename(TAR_FNAME, checksum="md5")
+		logger.info("Blob uploaded.")
+	else:
+		logger.warning(f"Error. {CLOUD_FNAME} blob exists.")
 
-	vault_blob = GCP_VAULT.blob(f"")
+	vault_blob = GCP_VAULT.blob(CLOUD_FNAME)
 	if not vault_blob.exists():
-		logger.warning(f"Error. {DATE}.tar.xz vault blob exists.")
+		logger.info("Uploading vault blob...")
+		vault_blob.upload_from_filename(TAR_FNAME, checksum="md5")
+		logger.info("Vault blob uploaded.")
+	else:
+		logger.warning(f"Error. {CLOUD_FNAME} vault blob exists.")
 
-	logger.info("Uploading blob...")
-	blob.upload_from_filename(f"{DIR}/data/{DATE}.tar.xz", checksum="md5")
-	logger.info("Blob uploaded.")
+	with open(TAR_FNAME, "rb") as file:
+		body = file.read()
 
-	logger.info("Uploading vault blob...")
-	vault_blob.upload_from_filename(f"{DIR}/data/{DATE}.tar.xz", checksum="md5")
-	logger.info("Vault blob uploaded.")
+	_hash = md5(body).digest()
+	_hash = base64.b64encode(_hash).decode()
+	logger.info(f"AWS Base64-encoded MD5 hash: {_hash}")
+
+	logger.info("Uploading vault object...")
+	AWS_VAULT.put_object(Key=CLOUD_FNAME, Body=body, ContentMD5=_hash, StorageClass='GLACIER')
+	logger.info("Vault object uploaded.")
 
 if __name__ == '__main__':
 
-	logger.info("CBOE Downloader Initialized")
+	logger.info("CBOE Downloader Initialized.")
 
 	try:
 		download_and_compress()
-		send_metric("cboe_options_indicator", "int64_value", 1)
+		save_to_cloud()
+		send_metric(CONFIG, "cboe_options_indicator", "int64_value", 1)
 	except Exception as e:
 		logger.warning(f"Process Error. {e}")
-		send_metric("cboe_options_indicator", "int64_value", 0)
+		send_metric(CONFIG, "cboe_options_indicator", "int64_value", 0)
+
+	logger.info("CBOE Downloader Terminated.")
