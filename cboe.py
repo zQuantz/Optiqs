@@ -1,4 +1,6 @@
 from const import DIR, DATE, CONFIG, CREDS, logger
+from datetime import datetime, timedelta
+from send_email import send_email
 from google.cloud import storage
 from gcp import send_metric
 from zipfile import ZipFile
@@ -8,6 +10,8 @@ import boto3 as boto
 import sys, os
 import base64
 import pysftp
+import pytz
+import time
 
 ###################################################################################################
 
@@ -32,18 +36,36 @@ def download_and_compress():
 	password = CBOE['PASS']
 
 	logger.info(f"Connecting to SFTP Server: {host}")
+	
 	cnopts = pysftp.CnOpts()
 	cnopts.hostkeys = None
-	with pysftp.Connection(host, username=username, password=password, cnopts=cnopts) as sftp:
 
-		sftp.chdir(CBOE['PATH'])
+	deadline = datetime.now() + timedelta(hours=3)
+	while datetime.now() < deadline:
 
-		logger.info(f"Downloading: {CBOE['FNAME']}{DATE}.zip")
-		sftp.get(f"{CBOE['FNAME']}{DATE}.zip", localpath=localname)
+		try:
 
-		filesize = os.stat(localname).st_size / 1_000_000
-		logger.info(f"Size of file: {filesize}mbs")
-		send_metric(CONFIG, "cboe_options_dump_size", "double_value", filesize)
+			with pysftp.Connection(host, username=username, password=password, cnopts=cnopts) as sftp:
+
+				sftp.chdir(CBOE['PATH'])
+
+				logger.info(f"Downloading: {CBOE['FNAME']}{DATE}.zip")
+				sftp.get(f"{CBOE['FNAME']}{DATE}XXX.zip", localpath=localname)
+
+				filesize = os.stat(localname).st_size / 1_000_000
+				logger.info(f"Size of file: {filesize}mbs")
+				send_metric(CONFIG, "cboe_options_dump_size", "double_value", filesize)
+				send_email(CONFIG, "CBOE File Download", f"""Success! File Size: {round(filesize, 2)}mbs""", [], logger)
+
+		except FileNotFoundError as not_found:
+
+			logger.info("Not uploaded yet. Sleeping...")
+			time.sleep(300)
+
+		except Exception as e:
+
+			logger.warning(f"Error. {e}. Exiting.")
+			1/0
 
 	logger.info(f"Unzipping data...")
 	with ZipFile(localname, "r") as zip_file:
