@@ -1,12 +1,14 @@
 from google.oauth2.service_account import Credentials
+from datetime import datetime
 import logging
 import json
+import pytz
 import os
 
 ###################################################################################################
 
 DIR = os.path.realpath(os.path.dirname(__file__))
-DATE = "2021-01-20"
+DATE = datetime.now(pytz.timezone("Canada/Eastern")).strftime("%Y-%m-%d")
 
 with open(f"{DIR}/optiqs_config.json", "r") as file:
 	CONFIG = json.loads(file.read())

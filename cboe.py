@@ -32,7 +32,9 @@ def download_and_compress():
 	password = CBOE['PASS']
 
 	logger.info(f"Connecting to SFTP Server: {host}")
-	with pysftp.Connection(host, username=username, password=password) as sftp:
+	cnopts = pysftp.CnOpts()
+	cnopts.hostkeys = None
+	with pysftp.Connection(host, username=username, password=password, cnopts=cnopts) as sftp:
 
 		sftp.chdir(CBOE['PATH'])
 
