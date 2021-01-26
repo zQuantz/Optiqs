@@ -50,12 +50,13 @@ def download_and_compress():
 				sftp.chdir(CBOE['PATH'])
 
 				logger.info(f"Downloading: {CBOE['FNAME']}{DATE}.zip")
-				sftp.get(f"{CBOE['FNAME']}{DATE}XXX.zip", localpath=localname)
+				sftp.get(f"{CBOE['FNAME']}{DATE}.zip", localpath=localname)
 
 				filesize = os.stat(localname).st_size / 1_000_000
 				logger.info(f"Size of file: {filesize}mbs")
 				send_metric(CONFIG, "cboe_options_dump_size", "double_value", filesize)
 				send_email(CONFIG, "CBOE File Download", f"""Success! File Size: {round(filesize, 2)}mbs""", [], logger)
+				break
 
 		except FileNotFoundError as not_found:
 
@@ -78,8 +79,9 @@ def download_and_compress():
 	with tar.open(TAR_FNAME, "x:xz") as tar_file:
 		tar_file.add(f"{DIR}/data/{DATE}.csv", arcname=f"{DATE}.csv")
 
-	logger.info("Deleting zip...")
+	logger.info("Deleting zip & csv...")
 	os.unlink(f"{DIR}/data/{DATE}.zip")
+	os.unlink(f"{DIR}/data/{DATE}.csv")
 
 def save_to_cloud():
 
