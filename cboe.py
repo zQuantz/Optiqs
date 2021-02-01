@@ -39,7 +39,7 @@ def download_and_compress():
 	cnopts = pysftp.CnOpts()
 	cnopts.hostkeys = None
 
-	deadline = datetime.now() + timedelta(hours=3)
+	deadline = datetime.now() + timedelta(hours=5)
 	while datetime.now() < deadline:
 
 		try:
