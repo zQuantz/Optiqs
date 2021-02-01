@@ -8,7 +8,9 @@ import os
 ###################################################################################################
 
 DIR = os.path.realpath(os.path.dirname(__file__))
-DATE = datetime.now(pytz.timezone("Canada/Eastern")).strftime("%Y-%m-%d")
+DATE = datetime.now(pytz.timezone("Canada/Eastern"))
+# DATE = datetime(2021, 1, 19, 18)
+SDATE = DATE.strftime("%Y-%m-%d")
 
 with open(f"{DIR}/optiqs_config.json", "r") as file:
 	CONFIG = json.loads(file.read())

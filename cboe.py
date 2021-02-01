@@ -1,8 +1,7 @@
 from const import DIR, DATE, CONFIG, CREDS, logger
+from utils import send_email, send_metric
 from datetime import datetime, timedelta
-from send_email import send_email
 from google.cloud import storage
-from gcp import send_metric
 from zipfile import ZipFile
 from hashlib import md5
 import tarfile as tar
@@ -23,14 +22,14 @@ GCP_BUCKET = storage_client.bucket(GCP['BUCKET'])
 GCP_VAULT = storage_client.bucket(GCP['VAULT'])
 AWS_VAULT = boto.resource('s3').Bucket("cboe-options-vault")
 
-CLOUD_FNAME = f"{DATE}.tar.xz"
+CLOUD_FNAME = f"{SDATE}.tar.xz"
 TAR_FNAME = f"{DIR}/data/{CLOUD_FNAME}"
 
 ###################################################################################################
 
 def download_and_compress():
 
-	localname = f"{DIR}/data/{DATE}.zip"
+	localname = f"{DIR}/data/{SDATE}.zip"
 	host = CBOE['HOST']
 	username = CBOE['USER']
 	password = CBOE['PASS']
@@ -49,8 +48,8 @@ def download_and_compress():
 
 				sftp.chdir(CBOE['PATH'])
 
-				logger.info(f"Downloading: {CBOE['FNAME']}{DATE}.zip")
-				sftp.get(f"{CBOE['FNAME']}{DATE}.zip", localpath=localname)
+				logger.info(f"Downloading: {CBOE['FNAME']}{SDATE}.zip")
+				sftp.get(f"{CBOE['FNAME']}{SDATE}.zip", localpath=localname)
 
 				filesize = os.stat(localname).st_size / 1_000_000
 				logger.info(f"Size of file: {filesize}mbs")
@@ -68,20 +67,22 @@ def download_and_compress():
 			logger.warning(f"Error. {e}. Exiting.")
 			1/0
 
+	assert datetime.now() > deadline, "File not uploaded. Deadline met."
+
 	logger.info(f"Unzipping data...")
 	with ZipFile(localname, "r") as zip_file:
 		zip_file.extractall(path=f"{DIR}/data")
 
-	logger.info(f"Renameing file to: {DIR}/data/{DATE}.csv")
-	os.rename(f"{DIR}/data/{CBOE['FNAME']}{DATE}.csv", f"{DIR}/data/{DATE}.csv")
+	logger.info(f"Renameing file to: {DIR}/data/{SDATE}.csv")
+	os.rename(f"{DIR}/data/{CBOE['FNAME']}{SDATE}.csv", f"{DIR}/data/{SDATE}.csv")
 
 	logger.info("Compressing file with tar...")
 	with tar.open(TAR_FNAME, "x:xz") as tar_file:
-		tar_file.add(f"{DIR}/data/{DATE}.csv", arcname=f"{DATE}.csv")
+		tar_file.add(f"{DIR}/data/{SDATE}.csv", arcname=f"{SDATE}.csv")
 
 	logger.info("Deleting zip & csv...")
-	os.unlink(f"{DIR}/data/{DATE}.zip")
-	os.unlink(f"{DIR}/data/{DATE}.csv")
+	os.unlink(f"{DIR}/data/{SDATE}.zip")
+	os.unlink(f"{DIR}/data/{SDATE}.csv")
 
 def save_to_cloud():
 
